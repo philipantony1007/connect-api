@@ -16,26 +16,19 @@ const bucketName = 'innovation-training-2024';
 
 export const post = async (_request: Request, response: Response) => {
   try {
-    // Get the orders
-    const limitedOrdersObject = await allOrders({ sort: ['lastModifiedAt'] });
-    logger.info(`There are ${limitedOrdersObject.total} orders!`);
-
-    // Define the current date
+    // Get today's date in YYYY-MM-DD format
     const today = new Date();
-    const todayStart = new Date(today.setHours(0, 0, 0, 0));
-    const todayEnd = new Date(today.setHours(23, 59, 59, 999));
+    const todayStr = today.toISOString().split('T')[0]; // e.g., "2024-09-10"
 
-    // Filter orders to include only those from the current day
-    const filteredOrders = limitedOrdersObject.results.filter((order: any) => {
-      const lastModifiedDate = new Date(order.lastModifiedAt);
-      return lastModifiedDate >= todayStart && lastModifiedDate <= todayEnd;
+    // Fetch orders created on the current day only
+    const limitedOrdersObject = await allOrders({
+      where: `createdAt >= "${todayStr}T00:00:00Z" and createdAt <= "${todayStr}T23:59:59Z"`,
     });
 
-    // Log the count of orders for the current day
-    logger.info(`Count of orders for the current day: ${filteredOrders.length}`);
+    logger.info(`There are ${limitedOrdersObject.total} orders created today!`);
 
-    // Extract order IDs
-    const orderIds = filteredOrders.map((order: any) => ({
+    // Extract order IDs for CSV
+    const orderIds = limitedOrdersObject.results.map((order: any) => ({
       orderId: order.id,
     }));
 
@@ -44,21 +37,21 @@ export const post = async (_request: Request, response: Response) => {
     const csv = json2csvParser.parse(orderIds);
 
     // Define the file name with today's date
-    const todayDateStr = new Date().toISOString().split('T')[0];
-    const fileName = `${todayDateStr}.csv`;
+    const fileName = `${todayStr}-orders.csv`;
 
     // Upload the CSV to AWS S3
-    const params = {
+    const uploadParams = {
       Bucket: bucketName,
-      Key: `amalthomson/${fileName}`,
+      Key: `philip/${fileName}`,
       Body: csv,
       ContentType: 'text/csv',
     };
 
-    await s3.upload(params).promise();
+    await s3.upload(uploadParams).promise();
 
     logger.info(`Order IDs have been uploaded to ${fileName} in ${bucketName}`);
-    response.status(200).send('CSV file uploaded successfully!');
+    response.status(200).send({ message: 'CSV file uploaded successfully to AWS S3!' });
+
   } catch (error: any) {
     logger.error(`Error: ${error.message}`);
     response.status(500).send('Internal Server Error - Error processing orders and uploading to S3');
