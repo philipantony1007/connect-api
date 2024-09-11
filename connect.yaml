@@ -28,7 +28,7 @@ deployAs:
     applicationType: job
     endpoint: /job
     properties:
-      schedule: "*/2 * * * *"
+      schedule: "0 23 * * *"
     configuration:
       standardConfiguration:
         - key: CTP_REGION
